@@ -1,0 +1,118 @@
+{
+  "id": "./",
+  "name": "AgroMapa",
+  "short_name": "AgroMapa",
+  "description": "Gestão da fazenda no celular e no computador: mapa e talhões, campo, colheita, clima, pecuária, estoque e financeiro. Funciona sem internet.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#f3f1ea",
+  "theme_color": "#1f4d2e",
+  "categories": [
+    "productivity",
+    "business",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshots/painel-celular.png",
+      "sizes": "390x780",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Painel da propriedade"
+    },
+    {
+      "src": "screenshots/colheita-celular.png",
+      "sizes": "390x780",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Folha de apontamento da colheita"
+    },
+    {
+      "src": "screenshots/painel-desktop.png",
+      "sizes": "1280x860",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Painel e mapa no computador"
+    },
+    {
+      "src": "screenshots/colheita-desktop.png",
+      "sizes": "1280x860",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Pagamentos da colheita"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Colheita",
+      "short_name": "Colheita",
+      "description": "Folha de apontamento do dia",
+      "url": "./#colheita",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Campo",
+      "short_name": "Campo",
+      "description": "Operações, MIP e fotos",
+      "url": "./#campo",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Mapa",
+      "short_name": "Mapa",
+      "description": "Talhões e divisa",
+      "url": "./#mapa",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false
+}
