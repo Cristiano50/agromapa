@@ -19,7 +19,7 @@ function database(){
       setImmediate(()=>{if(ended)return;if(control.failCommit){control.failCommit=false;tx.abort();return;}ended=true;if(mode==='readwrite'){control.beforeCommit?.(names);for(const [k,v]of drafts)stores.set(k,v);control.commits++;}tx.oncomplete?.();});return tx;}
   }}}));return request;};return control;
 }
-function fixture(){const db=database();const context=vm.createContext({window:{addEventListener(){}},document:{addEventListener(){}},indexedDB:db,structuredClone,console,setTimeout,clearTimeout,AbortController,toast(){},
+function fixture(){const db=database();const context=vm.createContext({window:{addEventListener(){}},document:{addEventListener(){}},indexedDB:db,AgroStorage:{createDatabase:(name,options)=>require('../storage.js').createDatabase(name,{...options,indexedDB:db})},structuredClone,console,setTimeout,clearTimeout,AbortController,toast(){},
   S:{photos:[],farms:[{id:'f',cloud:true,name:'Initial'}],settings:{},alerts:{},forecast:{},farmId:'f'},SKEYS:{farms:'farm'},SKEY_ALIAS:{},SNAP:new Map(),SYNCSEQ:0,persistT:null,persistP:null,WIPING:false,
   PHOTO_URLS:new Map(),recData:(k,r)=>({...r}),farmOfRec:(k,r)=>r.id,isCloud:()=>true,SYNC:{schedule(){},updatePill(){}},uid:()=> 'generated',healOld:()=>false,isFolha:()=>false,FV:0});
   vm.runInContext(section('const DB_STORES=', '/* ============================ base de conhecimento'),context);

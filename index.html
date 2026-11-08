@@ -19,6 +19,9 @@
 <script src="https://cdn.jsdelivr.net/npm/idb@8.0.0/build/umd.js"></script>
 <script src="config.js" onerror="window.AGRO_CONFIG=window.AGRO_CONFIG||{}"></script>
 <script src="backup.js"></script>
+<script src="account-migration.js"></script>
+<script src="account-store.js"></script>
+<script src="storage.js"></script>
 <style>
 /* Layout: app shell — header / rail (desktop) or bottom bar (phone) / panel + map side by side on desktop, stacked on phone */
 :root{
@@ -346,11 +349,11 @@ svg.leaflet-zoom-animated{will-change:transform}
 
 </head>
 <body>
-<div class="app">
+<div class="app" hidden>
   <header class="top">
     <div class="brand">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20c4-9 9-13 18-15-1 9-6 14-15 15" fill="none" stroke="var(--accent)" stroke-width="1.8"/><path d="M4 19c3-5 7-9 13-12" fill="none" stroke="var(--accent)" stroke-width="1.4"/></svg>
-      AgroMapa <small>v0.7</small>
+      AgroMapa <small>v0.8</small>
     </div>
     <select class="farmsel" id="farmSel" aria-label="Fazenda"></select>
     <div class="pills">
@@ -696,7 +699,7 @@ svg.leaflet-zoom-animated{will-change:transform}
           <label class="fl" style="margin-top:8px">Restaurar backup JSON<input id="impBackup" type="file" accept="application/json,.json"></label>
         </details>
         <details class="card"><summary>Dados de exemplo e limpeza</summary>
-          <div class="btnrow"><button class="btn small" id="btnClearEx">Remover dados de exemplo</button><button class="btn small danger" id="btnWipe">Apagar tudo</button></div>
+          <div class="btnrow"><button class="btn small" id="btnClearEx">Remover dados de exemplo</button><button class="btn small danger" id="btnWipe">Apagar dados deste espaço</button></div>
           <p class="note" style="margin-top:6px">"Apagar tudo" limpa este aparelho: dados, fotos, mapa offline e a sessão. O que já foi enviado para a nuvem continua na conta.</p>
         </details>
         <details class="card"><summary>Sobre e referências</summary>
@@ -762,28 +765,9 @@ function gridPoints(a,n){ const [[s,w],[no,e]]=bounds(a.pts); const out=[]; cons
    outbox (fila de sincronização), meta (versões do servidor e cursores), blobs (fotos), conflicts. */
 const DB_STORES=['kv','tiles','records','outbox','meta','blobs','conflicts'];
 let DB_LAST_ERR=null;
-const DB=(()=>{ let p=null; const upgrade=d=>{ DB_STORES.forEach(n=>{ if(!d.objectStoreNames.contains(n)) d.createObjectStore(n); }); };
-  function open(){ if(p) return p;
-    p=(window.idb&&window.idb.openDB)?window.idb.openDB('agromapa',2,{upgrade}):new Promise((res,rej)=>{ try{ const r=indexedDB.open('agromapa',2); r.onupgradeneeded=e=>upgrade(e.target.result); r.onsuccess=e=>{ const d=e.target.result; res(d); }; r.onerror=()=>rej(r.error); }catch(e){ rej(e); } });
-    return p; }
-  const req=q=>new Promise((res,rej)=>{ q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); });
-  async function transaction(stores,mode,fn){ let tx,done;
-    try{ const d=await open(); const wrapped=!!(window.idb&&d.get); tx=d.transaction(stores,mode);
-      done=wrapped?tx.done:new Promise((resolve,reject)=>{ tx.oncomplete=resolve; tx.onabort=()=>reject(tx.error||new Error('Gravação cancelada')); tx.onerror=()=>{}; });
-      // Observe failures immediately, including aborts while requests are still pending.
-      done.catch(()=>{}); const result=await fn(name=>tx.objectStore(name),wrapped); await done; return result;
-    }catch(e){ try{ tx?.abort(); }catch(_){} if(done) await done.catch(()=>{}); if(mode==='readwrite') DB_LAST_ERR=e; throw e; }
-  }
-  const run=(store,mode,fn)=>transaction(store,mode,(get,wrapped)=>fn(get(store),wrapped));
-  const op=(store,mode,name,...args)=>run(store,mode,(st,isIdb)=>isIdb?st[name](...args):req(st[name](...args)));
-  return { get:(s,k)=>op(s,'readonly','get',k), set:(s,k,v)=>op(s,'readwrite','put',v,k), del:(s,k)=>op(s,'readwrite','delete',k), count:s=>op(s,'readonly','count'), clear:s=>op(s,'readwrite','clear'),
-    atomic(stores,fn){ return transaction(stores,'readwrite',(get,wrapped)=>fn((s,name,...args)=>{ const q=get(s)[name](...args); return wrapped?q:req(q); })); },
-    keys:s=>op(s,'readonly','getAllKeys'), all:s=>op(s,'readonly','getAll'),
-    async entries(s){ return run(s,'readonly',async(st,wrapped)=>{ const [k,v]=await Promise.all([wrapped?st.getAllKeys():req(st.getAllKeys()),wrapped?st.getAll():req(st.getAll())]); return k.map((key,i)=>[key,v[i]]); }); },
-    async batch(groups){ const names=Object.keys(groups).filter(s=>groups[s].length); if(!names.length) return;
-      return transaction(names,'readwrite',async(get,wrapped)=>{ const pending=[]; for(const s of names) for(const [k,v] of groups[s]){ const q=v===undefined?get(s).delete(k):get(s).put(v,k); pending.push(wrapped?q:req(q)); } await Promise.all(pending); }); },
-    putMany(s,pairs){ return this.batch({[s]:pairs}); } };
-})();
+const createDatabase=name=>AgroStorage.createDatabase(name,{onError:error=>{DB_LAST_ERR=error;}});
+let DB=createDatabase('agromapa-local-v1');
+let ACCOUNTS=null, ACCOUNT_CONTEXT=null, ACCOUNT_SWITCHING=false, accountChannel=null;
 
 /* ============================ base de conhecimento ============================ */
 const USES={
@@ -1060,7 +1044,7 @@ async function load(){
   for(const k of Object.keys(SKEYS)) S[k]=[];
   recs.sort((a,b)=>(a[1]?.o??0)-(b[1]?.o??0)).forEach(([key,v])=>{ if(v&&S[v.k]){ S[v.k].push(v.rec); SNAP.set(key,JSON.stringify(recData(v.k,v.rec))); } });
   const loc=await DB.get('kv','local')||{}; S.settings=Object.assign({base:'sat',tab:'painel',layers:{}},loc.settings||{}); S.alerts=loc.alerts||{items:[],at:null}; S.forecast=loc.forecast||{}; S.dmSession=loc.dmSession||null; S.farmId=loc.farmId; S.schema=loc.schema||4;
-  if(!S.farms.length){ seed(); await persistAll(); }
+  if(!S.farms.length){ const fid=uid(); S.farms.push({id:fid,name:'Minha propriedade',city:'',car:'',season:''}); S.farmId=fid; await persistNow(); }
   if(!farmById(S.farmId)) S.farmId=S.farms[0].id;
 }
 // Migração automática da v0.3 (um único objeto em kv/state2, ids curtos) para registros com UUID
@@ -1097,6 +1081,22 @@ async function hydratePhotos(root){ for(const img of $$('img[data-ph]',root||doc
     if(b){ const u=URL.createObjectURL(b); PHOTO_URLS.set(id,u); img.src=u; } } }
 
 /* ---------------- conta, API e motor de sincronização ---------------- */
+function notifyAccountChange(){ try{ accountChannel?.postMessage('changed'); localStorage.setItem('agromapa-account-change',crypto.randomUUID()); }catch(_){} }
+async function switchAccount(nextSession){
+  if(ACCOUNT_SWITCHING) return; ACCOUNT_SWITCHING=true; $('.app').inert=true;
+  try{ await SYNC.idle(); await persistNow(); const pendingInvite=nextSession?await DB.get('kv','pendingInvite'):null; await ACCOUNTS.changeSession(nextSession,{pendingInvite}); notifyAccountChange(); location.reload(); }
+  catch(error){ ACCOUNT_SWITCHING=false; $('.app').inert=false; showSaveFailure(error); toast('A conta não foi trocada: '+error.message); throw error; }
+}
+async function checkAccountChange(){
+  if(!ACCOUNTS||ACCOUNT_SWITCHING) return;
+  try{ await ACCOUNTS.assertActive(); }catch(error){
+    ACCOUNT_SWITCHING=true; $('.app').hidden=true;
+    const barrier=document.createElement('div'); barrier.className='card'; barrier.style.margin='24px';
+    barrier.textContent='A conta mudou em outra aba. Salvando as alterações na conta anterior…'; document.body.append(barrier);
+    const finish=async()=>{ try{ await SYNC.idle(); await persistNow(); location.reload(); }catch(e){ barrier.textContent='A conta mudou, mas há alterações da conta anterior que ainda precisam ser salvas. Libere espaço e tente novamente.'; const button=document.createElement('button'); button.className='btn'; button.textContent='Tentar salvar e continuar'; button.onclick=finish; barrier.append(button); } }; await finish();
+  }
+}
+async function reloadAccountData(){ await persistNow(); SNAP.clear(); for(const url of PHOTO_URLS.values()) URL.revokeObjectURL(url); PHOTO_URLS.clear(); await load(); FV++; fillSelects(); refreshAll(); fitFarm(); }
 async function acknowledgeSync(key,e,r,fid){
   await DB.atomic(['outbox','meta','conflicts'],async op=>{
     const cur=await op('outbox','get',key), still=cur&&cur.seq===e.seq;
@@ -1137,26 +1137,26 @@ const SYNC=(()=>{ let session=null, timer=null, running=false; const st={pending
   const configured=()=>!!(CFG.supabaseUrl&&CFG.supabaseAnonKey&&CFG.apiUrl);
   const loggedIn=()=>!!session;
   async function authCall(path,body){ return requestWithTimeout(CFG.supabaseUrl+'/auth/v1/'+path,{method:'POST',headers:{apikey:CFG.supabaseAnonKey,'Content-Type':'application/json'},body:JSON.stringify(body)},async r=>{ const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.msg||j.error_description||j.message||j.error||('erro '+r.status)); return j; }); }
-  async function setSession(j){ session={access_token:j.access_token,refresh_token:j.refresh_token,expires_at:Date.now()+(j.expires_in||3600)*1000,user:{id:j.user?.id||session?.user?.id,email:j.user?.email||session?.user?.email}}; await DB.set('kv','session',session); }
-  async function token(){ if(!session) return null; if(session.expires_at-Date.now()<60000){ try{ await setSession(await authCall('token?grant_type=refresh_token',{refresh_token:session.refresh_token})); }catch(e){ if(navigator.onLine&&/invalid|expired|not found/i.test(e.message)){ session=null; await DB.del('kv','session'); } throw e; } } return session.access_token; }
+  async function setSession(j,login=false){ const next={access_token:j.access_token,refresh_token:j.refresh_token,expires_at:Date.now()+(j.expires_in||3600)*1000,user:{id:j.user?.id||session?.user?.id,email:j.user?.email||session?.user?.email}}; if(login) return switchAccount(next); await ACCOUNTS.refreshSession(next); session=next; }
+  async function token(){ try{ const current=await ACCOUNTS.assertActive(); session=current.session||null; }catch(error){ checkAccountChange(); throw error; } if(ACCOUNT_SWITCHING) throw new Error('Troca de conta em andamento.'); if(!session) return null; if(session.expires_at-Date.now()<60000){ try{ await setSession(await authCall('token?grant_type=refresh_token',{refresh_token:session.refresh_token})); }catch(e){ if(navigator.onLine&&/invalid|expired|not found/i.test(e.message)){ session=null; await ACCOUNTS.expireSession(); notifyAccountChange(); } throw e; } } return session.access_token; }
   async function api(method,path,body,raw){ const t=await token(); if(!t) throw Object.assign(new Error('entre na conta'),{status:401}); return requestWithTimeout(CFG.apiUrl+path,{method,headers:{Authorization:'Bearer '+t,...(raw?{'Content-Type':'application/octet-stream'}:body!==undefined?{'Content-Type':'application/json'}:{})},body:raw?body:body!==undefined?JSON.stringify(body):undefined},async r=>{ const j=await r.json().catch(()=>({})); if(!r.ok) throw Object.assign(new Error(j.error||('erro '+r.status)),{status:r.status}); return j; },path==='/laudo'||raw?60000:20000); }
   async function storage(method,path,body,type){ const t=await token(); return requestWithTimeout(`${CFG.supabaseUrl}/storage/v1/object/${method==='GET'?'authenticated/':''}farm-files/${path}`,{method,headers:{apikey:CFG.supabaseAnonKey,Authorization:'Bearer '+t,...(type?{'Content-Type':type,'x-upsert':'true'}:{})},body},r=>{ if(!r.ok) throw new Error('storage '+r.status); return method==='GET'?r.blob():r.json().catch(()=>({})); },60000); }
 
-  async function init(){ DEVICE=await DB.get('kv','device')||null; if(!DEVICE){ DEVICE='dev-'+uid(); await DB.set('kv','device',DEVICE); } session=await DB.get('kv','session')||null;
+  async function init(){ DEVICE=await DB.get('kv','device')||null; if(!DEVICE){ DEVICE='dev-'+uid(); await DB.set('kv','device',DEVICE); } session=ACCOUNT_CONTEXT.active.session||null;
     const h=location.hash||''; if(h.startsWith('#convite=')){ await DB.set('kv','pendingInvite',decodeURIComponent(h.slice(9))); try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){} setTimeout(()=>{ showTab('config'); toast(session?'Aceitando o convite…':'Entre na conta para aceitar o convite.'); },600); }
     for(const f of S.farms){ const tt=await DB.get('kv','tile:'+f.id); if(tt&&f.id===S.farmId) BASES.lic.url=tt.template; }
     window.addEventListener('online',()=>schedule(500)); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) schedule(1000); });
     timer=setInterval(()=>schedule(0),60000); await refreshCounts(); updatePill(); render(); if(session) afterLogin(false).catch(()=>{}); }
-  function schedule(ms=2500){ if(WIPING||!session||!configured()) return; clearTimeout(schedule._t); schedule._t=setTimeout(()=>syncAll().catch(()=>{}),ms); }
+  function schedule(ms=2500){ if(WIPING||ACCOUNT_SWITCHING||!session||!configured()) return; clearTimeout(schedule._t); schedule._t=setTimeout(()=>syncAll().catch(()=>{}),ms); }
   async function refreshCounts(){ st.pending=(await DB.count('outbox'))||0; st.conflicts=(await DB.count('conflicts'))||0; }
-  function updatePill(){ const el=$('#pillSync'); if(!el) return; refreshCounts().then(()=>{ const sp=el.querySelector('span'); let cls='', txt='só neste aparelho';
+  function updatePill(){ const el=$('#pillSync'); if(!el) return; refreshCounts().then(()=>{ const sp=el.querySelector('span'); let cls='', txt=ACCOUNT_CONTEXT?.active.userId?'dados desta conta':'modo local';
       if(session){ if(st.conflicts){ cls='off'; txt=`${st.conflicts} conflito(s)`; } else if(!navigator.onLine){ cls='busy'; txt=st.pending?`${st.pending} pendente(s) — offline`:'offline'; } else if(running){ cls='busy'; txt='sincronizando…'; } else if(st.error){ cls='off'; txt='erro de sincronização'; } else if(st.pending){ cls='busy'; txt=`${st.pending} pendente(s)`; } else { cls='on'; txt='sincronizado'; } }
       el.className='pill '+cls; sp.textContent=txt; setBadge('config',st.conflicts); }); }
-  async function syncAll(){ if(WIPING||running||!session||!navigator.onLine||!configured()) return; running=true; updatePill(); st.error=null;
+  async function syncAll(){ if(WIPING||ACCOUNT_SWITCHING||running||!session||!navigator.onLine||!configured()) return; running=true; updatePill(); st.error=null;
     try{ await persistNow(); const inv=await DB.get('kv','pendingInvite'); if(inv){ try{ const r=await api('POST','/invites/accept',{token:inv}); await DB.del('kv','pendingInvite'); await adoptFarm(r.farm_id,r.name); S.farmId=r.farm_id; toast(`Você entrou em "${r.name}" como ${ROLE_PT[r.role]}.`); }catch(e){ if([400,404,410,422].includes(e.status)) await DB.del('kv','pendingInvite'); toast('Convite: '+e.message); throw e; } }
       for(const f of S.farms.filter(x=>x.cloud)){ await pushFarm(f.id); await pullFarm(f.id); await pushFarm(f.id); await uploadPhotos(f.id); }
       st.last=Date.now(); await DB.set('kv','lastSync',st.last); }
-    catch(e){ st.error=e.message; if(e.status===401){ session=null; await DB.del('kv','session'); toast('Sessão expirada: entre na conta de novo.'); } }
+    catch(e){ st.error=e.message; if(e.status===401){ session=null; await ACCOUNTS.expireSession(); notifyAccountChange(); toast('Sessão expirada: entre na conta de novo.'); } }
     finally{ running=false; await refreshCounts(); updatePill(); render(); } }
   async function pushFarm(fid){ const all=(await DB.entries('outbox')).filter(([,e])=>e.farm===fid);
     for(let i=0;i<all.length;i+=200){ const batch=all.slice(i,i+200);
@@ -1184,26 +1184,28 @@ const SYNC=(()=>{ let session=null, timer=null, running=false; const st={pending
     if(choice==='mine'){ await DB.set('meta','v:'+key,{version:c.version}); await DB.set('outbox',key,{k:c.k,table:c.table,id:c.id,farm:c.farm,data:c.mine,deleted:c.mineDeleted,seq:++SYNCSEQ}); }
     else { await applyRemote(c.k,c.id,c.k==='farms'?{...c.server.data,name:c.server.name||c.server.data?.name}:c.server.data,!!c.server.deleted); await DB.set('meta','v:'+key,{version:c.version}); }
     await DB.del('conflicts',key); refreshAll(); await refreshCounts(); updatePill(); render(); schedule(300); }
-  async function afterLogin(first){ try{ const farms=await api('GET','/farms'); for(const f of farms) await adoptFarm(f.id,f.name); if(first&&!farms.length) toast('Conta pronta. Envie uma propriedade para a nuvem em Ajustes.'); await persistNow(); fillSelects(); refreshAll(); await syncAll(); await tileToken({}).catch(()=>{}); }catch(e){ st.error=e.message; render(); } }
+  async function afterLogin(first){ try{ const farms=await api('GET','/farms'); const migrated=await queueLocalWrite(async()=>{ await persistCommit(false); return ACCOUNTS.migrate(farms.map(f=>f.id)); }); if(migrated.copied) await reloadAccountData(); for(const f of farms) await adoptFarm(f.id,f.name); if(first&&!farms.length) toast('Conta pronta. Envie uma propriedade para a nuvem em Ajustes.'); await persistNow(); fillSelects(); refreshAll(); await syncAll(); await tileToken({}).catch(()=>{}); }catch(e){ st.error=e.message; render(); } }
   async function tileToken(anchor){ const f=farm(); if(!session||!configured()||!f?.cloud||!navigator.onLine) return null; const q=new URLSearchParams({farm_id:f.id}); if(anchor&&anchor.lat){ q.set('lat',anchor.lat); q.set('lng',anchor.lng); q.set('km',anchor.km||2); }
     const j=await api('GET','/tiles/token?'+q); BASES.lic.url=j.template; BASES.lic.attr=j.attribution||BASES.lic.attr; await DB.set('kv','tile:'+f.id,{template:j.template,exp:Date.parse(j.expires_at)}); if(S.settings.base==='lic') setBase('lic'); return j; }
 
   /* ---------- telas: conta, membros, conflitos ---------- */
   const ROLE_PT={owner:'dono',manager:'gerente',agronomist:'técnico',viewer:'leitor'};
   function render(){ const el=$('#syncCard'); if(!el) return; renderMembers(); renderConflicts();
-    if(!configured()){ el.innerHTML=`<div class="eyebrow">Conta e sincronização</div><p class="note" style="margin-top:6px">Este app está funcionando <b>só neste aparelho</b>. Para compartilhar a propriedade com outras pessoas e ter backup na nuvem, o app precisa estar ligado a um servidor (arquivo <code>config.js</code>, ver LEIA-ME).</p>`; return; }
-    if(!session){ el.innerHTML=`<div class="eyebrow">Conta e sincronização</div><p class="note" style="margin-top:6px">Opcional. Sem conta, os dados ficam só neste aparelho. Com conta, a propriedade é compartilhada com dono, gerente e técnicos, sincroniza quando houver internet e tem backup diário.</p>
+    if(!configured()){ el.innerHTML=`<div class="eyebrow">Conta e sincronização</div><p class="note">${ACCOUNT_CONTEXT.active.userId?'Os registros e envios pendentes desta conta continuam guardados.':'Você está no modo local. Registros de contas não aparecem aqui.'} O serviço de login e sincronização não está configurado. Os dados anteriores foram preservados.</p>${ACCOUNT_CONTEXT.active.userId?'<button class="btn small" id="useLocal">Sair e usar o modo local</button>':''}`; if($('#useLocal')) $('#useLocal').onclick=()=>switchAccount(null).catch(()=>{}); return; }
+    if(!session){ el.innerHTML=`<div class="eyebrow">Conta e sincronização</div><p class="note" style="margin-top:6px">Cada conta tem seus próprios registros neste aparelho. Ao entrar, as alterações pendentes da conta anterior continuam guardadas. Dados antigos só são recuperados para uma conta autorizada; o original permanece preservado.</p>
         <form class="f" id="loginForm" style="margin-top:8px"><div class="row"><label class="fl">E-mail<input id="lgEmail" type="email" required autocomplete="email"></label><label class="fl">&nbsp;<button class="btn primary" type="submit" id="lgSend">Receber código</button></label></div>
-        <div class="row" id="lgCodeRow" hidden><label class="fl">Código recebido por e-mail<input id="lgCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8"></label><label class="fl">&nbsp;<button class="btn primary" type="button" id="lgVerify">Entrar</button></label></div><p class="note" id="lgMsg"></p></form>`;
+        <div class="row" id="lgCodeRow" hidden><label class="fl">Código recebido por e-mail<input id="lgCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8"></label><label class="fl">&nbsp;<button class="btn primary" type="button" id="lgVerify">Entrar</button></label></div><p class="note" id="lgMsg"></p></form>${ACCOUNT_CONTEXT.active.userId?'<button class="btn small" id="useLocal">Sair e usar o modo local</button>':''}`;
+      if($('#useLocal')) $('#useLocal').onclick=()=>switchAccount(null).catch(()=>{});
       $('#loginForm').onsubmit=async e=>{ e.preventDefault(); const em=$('#lgEmail').value.trim(); $('#lgSend').disabled=true; try{ await authCall('otp',{email:em,create_user:true}); $('#lgCodeRow').hidden=false; $('#lgMsg').textContent='Enviamos um código para '+em+'. Confira também o spam.'; $('#lgCode').focus(); }catch(err){ $('#lgMsg').textContent='Não foi possível enviar: '+err.message; } $('#lgSend').disabled=false; };
-      $('#lgVerify').onclick=async()=>{ try{ const j=await authCall('verify',{type:'email',email:$('#lgEmail').value.trim(),token:$('#lgCode').value.trim()}); await setSession(j); toast('Conta conectada.'); render(); await afterLogin(true); }catch(err){ $('#lgMsg').textContent='Código inválido ou expirado: '+err.message; } }; return; }
+      $('#lgVerify').onclick=async()=>{ try{ const j=await authCall('verify',{type:'email',email:$('#lgEmail').value.trim(),token:$('#lgCode').value.trim()}); await setSession(j,true); }catch(err){ $('#lgMsg').textContent='Código inválido ou expirado: '+err.message; } }; return; }
     const local=S.farms.filter(f=>!f.cloud); const last=st.last?new Date(st.last).toLocaleString('pt-BR'):'nunca';
     el.innerHTML=`<div class="eyebrow">Conta e sincronização</div><p style="margin:6px 0 0"><b>${esc(session.user.email||'')}</b></p>
       <dl class="kv num"><dt>Status</dt><dd>${!navigator.onLine?'offline — as alterações ficam na fila':running?'sincronizando…':st.error?`<span class="chip crit">erro</span> ${esc(st.error)}`:'em dia'}</dd><dt>Pendentes</dt><dd>${st.pending} alteração(ões) na fila</dd><dt>Última sincronização</dt><dd>${last}</dd>${st.denied?`<dt>Recusadas</dt><dd>${st.denied} alteração(ões) sem permissão para o seu papel (desfeitas no próximo recebimento)</dd>`:''}</dl>
       <form class="f" id="profForm" style="margin-top:8px"><div class="row"><label class="fl">Seu nome (aparece para os membros)<input id="pfName" maxlength="120" value="${esc((farm()?._members||[]).find(m=>m.user_id===session.user.id)?.name||'')}"></label><label class="fl">&nbsp;<button class="btn small" type="submit">Salvar nome</button></label></div></form>
       ${local.length?`<div class="note" style="margin-top:8px">Propriedades só neste aparelho:</div>${local.map(f=>`<div class="btnrow" style="margin-top:4px"><span style="flex:1">${esc(f.name)}${f.example?' <span class="chip ex">exemplo</span>':''}</span><button class="btn small" data-up="${f.id}">Enviar para a nuvem</button></div>`).join('')}`:''}
-      <div class="btnrow" style="margin-top:10px"><button class="btn primary small" id="syNow">Sincronizar agora</button>${farm()?.cloud?'<button class="btn small" id="syLaudo">Gerar laudo em PDF</button>':''}<button class="btn small danger" id="syOut">Sair da conta</button></div><p class="note" id="syMsg"></p>`;
-    $('#syNow').onclick=()=>syncAll(); $('#syOut').onclick=e=>confirmBtn(e.target,'Sair? (dados ficam no aparelho)',async()=>{ session=null; await DB.del('kv','session'); render(); updatePill(); });
+      <p class="note">Os registros e envios pendentes pertencem a esta conta. Ao sair, ficam guardados e deixam de aparecer no modo local.</p><details><summary>Dados do modo local</summary><p class="note">Copie para esta conta as propriedades criadas sem login. A cópia original continuará no modo local. Dados de outras contas não serão incluídos.</p><button class="btn small" id="copyLocal">Copiar dados locais para esta conta</button></details><div class="btnrow" style="margin-top:10px"><button class="btn primary small" id="syNow">Sincronizar agora</button>${farm()?.cloud?'<button class="btn small" id="syLaudo">Gerar laudo em PDF</button>':''}<button class="btn small danger" id="syOut">Sair da conta</button></div><p class="note" id="syMsg"></p>`;
+    $('#copyLocal').onclick=async e=>{ const button=e.target; button.disabled=true; try{ await idle(); await persistNow(); const copied=await queueLocalWrite(()=>ACCOUNTS.importLocal()); await reloadAccountData(); toast(copied?copied+' registro(s) copiado(s). A origem foi preservada.':'Não há novos dados locais para copiar.'); }catch(error){ toast(error.message); }finally{ button.disabled=false; } };
+    $('#syNow').onclick=()=>afterLogin(false); $('#syOut').onclick=e=>confirmBtn(e.target,'Sair e guardar os dados desta conta?',()=>switchAccount(null).catch(()=>{}));
     $('#profForm').onsubmit=async e=>{ e.preventDefault(); try{ await api('PUT','/profile',{name:$('#pfName').value}); toast('Nome salvo'); schedule(200); }catch(err){ toast(err.message); } };
     $$('[data-up]',el).forEach(b=>b.onclick=()=>uploadFarm(b.dataset.up).catch(err=>toast('Envio: '+err.message)));
     const lb=$('#syLaudo'); if(lb) lb.onclick=()=>laudo($('#syMsg'),lb); }
@@ -2333,7 +2335,7 @@ $('#impBackup').onchange=async e=>{
   refreshAll(); fitFarm(); toast(`Backup restaurado: ${result.added} registro(s) novo(s), ${result.updated} atualizado(s). Nada foi apagado.`);
 };
 $('#btnClearEx').onclick=()=>{ ['areas','samples','stock','ops','lots','weighs','health','rotations','fin','tasks','rain','mip','mipPoints','clots'].forEach(k=>{ S[k]=S[k].filter(x=>!x.example); }); S.moves=S.moves.filter(m=>S.stock.some(i=>i.id===m.itemId)); S.farms.forEach(f=>{ delete f.example; if(f.boundary?.example) delete f.boundary; }); save(); refreshAll(); toast('Dados de exemplo removidos'); };
-$('#btnWipe').onclick=e=>confirmBtn(e.target,'Apagar TUDO deste aparelho?',async()=>{ WIPING=true; clearTimeout(persistT); persistT=null; try{ await persistP; }catch(_){} await SYNC.idle(); for(const st of DB_STORES) await DB.clear(st); location.reload(); });
+$('#btnWipe').onclick=e=>confirmBtn(e.target,'Apagar apenas os dados deste espaço?',async()=>{ WIPING=true; clearTimeout(persistT); persistT=null; try{ await persistP; }catch(_){} await SYNC.idle(); await DB.atomic(DB_STORES,async op=>{ for(const st of DB_STORES) if(st!=='meta') await op(st,'clear'); const keys=await op('meta','getAllKeys'); for(const key of keys) if(!key.startsWith('legacy-v1:')&&!key.startsWith('local-copy-v1:')) await op('meta','delete',key); }); location.reload(); });
 
 /* ============================ instalação como aplicativo ============================
    O app é um PWA: no Android e no computador (Chrome, Edge) o navegador oferece "Instalar"; no iPhone é Compartilhar →
@@ -2384,13 +2386,17 @@ async function swSetup(){ if(!(location.protocol.startsWith('http')&&'serviceWor
 
 /* ============================ boot ============================ */
 (async function boot(){
-  await load(); dmMigrate(); buildNav(); segInit('campoSeg'); segInit('pecSeg'); segInit('colSeg'); initMap(); fillSelects(); drawAll(); Object.values(RENDER).forEach(f=>f()); netPill(); updateTilePill(); setGps('GPS parado','');
+  ACCOUNTS=AgroAccountStore.create({createDatabase,planLegacy:AgroAccountMigration.planLegacy}); ACCOUNT_CONTEXT=await ACCOUNTS.init(); DB=ACCOUNT_CONTEXT.db;
+  if(typeof BroadcastChannel!=='undefined'){ accountChannel=new BroadcastChannel('agromapa-accounts-v1'); accountChannel.onmessage=()=>checkAccountChange(); }
+  window.addEventListener('storage',e=>{ if(e.key==='agromapa-account-change') checkAccountChange(); }); window.addEventListener('focus',()=>checkAccountChange());
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkAccountChange(); });
+  await ACCOUNTS.assertActive(); await load(); $('.app').hidden=false; dmMigrate(); buildNav(); segInit('campoSeg'); segInit('pecSeg'); segInit('colSeg'); initMap(); fillSelects(); drawAll(); Object.values(RENDER).forEach(f=>f()); netPill(); updateTilePill(); setGps('GPS parado','');
   const h=location.hash.slice(1); showTab(TABS.some(t=>t[0]===h)?h:(S.settings.tab||'painel'));
   await SYNC.init();
   await swSetup();
   window.addEventListener('resize',()=>{ clearTimeout(window._rz); window._rz=setTimeout(()=>{ renderDashboard(); renderClimateCharts(); renderWeighs(); renderFin(); },200); });
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ renderDashboard(); renderClimateCharts(); renderWeighs(); renderFin(); });
-})();
+})().catch(error=>{ $('.app').hidden=true; const box=document.createElement('div'); box.className='card'; box.style.margin='24px'; const title=document.createElement('h2'); title.textContent='Não foi possível abrir os dados'; const message=document.createElement('p'); message.textContent=error.message+' Os registros anteriores foram preservados. Não limpe os dados do navegador.'; const retry=document.createElement('button'); retry.className='btn'; retry.textContent='Tentar novamente'; retry.onclick=()=>location.reload(); box.append(title,message,retry); document.body.append(box); });
 
 </script>
 

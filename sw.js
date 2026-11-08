@@ -1,8 +1,8 @@
 /* AgroMapa — service worker. Guarda a "casca" do app (HTML, manifesto, ícones, bibliotecas e fontes) para abrir sem internet
    e instalar como aplicativo. Os dados ficam no IndexedDB do app; chamadas ao servidor (Supabase/API) e blocos de mapa
    nunca passam por este cache. Cada versão nova substitui a anterior. */
-const CACHE = 'agromapa-0.7-persistence-mobile-3';
-const SHELL = ['./', './index.html', './backup.js', './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-192.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'];
+const CACHE = 'agromapa-0.8-account-storage-1';
+const SHELL = ['./', './index.html', './backup.js', './storage.js', './account-store.js', './account-migration.js', './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-192.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'];
 const LIBS = ['https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js', 'https://cdn.jsdelivr.net/npm/idb@8.0.0/build/umd.js'];
 const LIB_HOSTS = ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 

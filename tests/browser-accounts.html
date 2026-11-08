@@ -1,0 +1,31 @@
+<!doctype html><meta charset="utf-8"><title>Teste de isolamento AgroMapa</title>
+<style>body{font:16px system-ui;max-width:850px;margin:40px auto;padding:20px}button{padding:12px}pre{white-space:pre-wrap;line-height:1.6}</style>
+<h1>Isolamento por conta — IndexedDB real</h1>
+<p>Usa somente bancos de teste com nomes aleatórios e contas fictícias. Não acessa os dados do aplicativo.</p>
+<button id="run">Executar testes</button><pre id="result" role="status"></pre>
+<script src="https://cdn.jsdelivr.net/npm/idb@8.0.0/build/umd.js"></script>
+<script src="../storage.js"></script><script src="../account-migration.js"></script><script src="../account-store.js"></script>
+<script>
+const result=document.querySelector('#result');
+document.querySelector('#run').onclick=async function(){this.disabled=true;result.textContent='';
+  const check=(value,message)=>{if(!value)throw Error(message);result.textContent+='✓ '+message+'\n';};
+  try{for(const helper of [null,window.idb]){
+    if(helper===undefined)throw Error('Biblioteca idb não carregou');
+    result.textContent+='\n'+(helper?'Biblioteca idb':'IndexedDB nativo')+'\n';
+    const prefix='agromapa-test-'+crypto.randomUUID()+':',factory=name=>AgroStorage.createDatabase(prefix+name,{idb:helper}),make=()=>AgroAccountStore.create({createDatabase:factory,planLegacy:AgroAccountMigration.planLegacy});
+    const legacy=factory('agromapa'),session=id=>({user:{id,email:id+'@test.invalid'},access_token:'test-only'});
+    const farm=(id,user)=>({k:'farms',id,rec:{id,name:id,cloud:!!user,_members:user?[{user_id:user}]:[]},o:0});
+    await legacy.batch({kv:[['session',session('A')]],records:[['farms:a',farm('a','A')],['farms:b',farm('b','B')],['farms:local',farm('local')],['photos:p',{k:'photos',id:'p',rec:{id:'p',farmId:'a'},o:0}]],outbox:[['ops:x',{k:'ops',id:'x',farm:'a',deleted:true,seq:789,data:{farmId:'a'}}]],meta:[['v:ops:x',{version:4}]],blobs:[['photo:p:t',new Blob(['photo-A'])]]});
+    const a=make();await a.init();check(!!await a.db.get('records','farms:a')&&!await a.db.get('records','farms:b'),'Conta A não vê os registros de B');
+    check((await a.db.get('outbox','ops:x')).seq===789&&(await a.db.get('meta','v:ops:x')).version===4,'Fila, exclusão pendente e versão preservadas');
+    check(await (await a.db.get('blobs','photo:p:t')).text()==='photo-A','Foto preservada');
+    await a.changeSession(session('B'));const b=make();await b.init();check(!!await b.db.get('records','farms:b')&&!await b.db.get('records','farms:a'),'Conta B não vê os registros de A');
+    await a.db.set('kv','late','A');check(!await b.db.get('kv','late'),'Resposta antiga continua no banco de A');
+    await b.changeSession(null);const guest=make();await guest.init();check(!!await guest.db.get('records','farms:local')&&!await guest.db.get('records','farms:a'),'Modo local não recebe dados de contas');
+    await guest.changeSession(session('A'));const returned=make();await returned.init();check((await returned.db.get('outbox','ops:x')).deleted,'Sair e voltar mantém os envios pendentes');
+    await returned.db.del('outbox','ops:x');await returned.migrate(['a']);check(!await returned.db.get('outbox','ops:x'),'Migração repetida não recria envio já consumido');
+    check(!!await legacy.get('outbox','ops:x')&&(await legacy.get('blobs','photo:p:t')).size===7,'Banco antigo permanece intacto');
+  }result.textContent+='\nAPROVADO — 18 verificações em dois adaptadores reais.';
+  }catch(error){result.textContent+='\nFALHA: '+error.stack;}finally{this.disabled=false;}
+};
+</script>

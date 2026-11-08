@@ -1,4 +1,4 @@
-AgroMapa v0.7 — app instalável (PWA). Publicado no GitHub Pages. Os dados ficam no aparelho de quem usa; este repositório tem só o código.
+AgroMapa v0.8 — app instalável (PWA). Publicado no GitHub Pages. Os dados ficam no aparelho de quem usa; este repositório tem só o código.
 
 ## Executar e verificar
 
@@ -25,8 +25,16 @@ O mapa no celular mantém a navegação visível, oferece um painel recolhível 
 
 ## Publicação e limites da validação
 
-Publique `index.html`, `backup.js`, `sw.js` e os demais recursos juntos. Ao alterar os arquivos da aplicação, atualize o nome de cache em `sw.js` para oferecer a nova versão aos aplicativos instalados. O banco não é apagado por essa atualização.
+Publique `index.html`, `backup.js`, `storage.js`, `account-store.js`, `account-migration.js`, `sw.js` e os demais recursos juntos. Ao alterar os arquivos da aplicação, atualize o nome de cache em `sw.js` para oferecer a nova versão aos aplicativos instalados. O banco não é apagado por essa atualização.
 
 Os testes de falhas usam uma simulação de IndexedDB; a verificação manual no Chrome cobre a gravação real com a biblioteca `idb` e a leitura após recarregar. A API, as migrações SQL e as políticas de acesso não estão neste repositório; sincronização entre contas/aparelhos exige validação com esse servidor.
 
-O banco local continua compartilhado pelas contas que usam o mesmo perfil de navegador. Separá-lo por usuário requer uma migração que preserve dados e envios pendentes; essa alteração não está incluída nesta revisão. Use perfis de navegador separados em aparelhos compartilhados até essa migração.
+## Dados separados por conta
+
+Cada conta usa um banco próprio, identificado pelo ID do usuário. O modo sem login também tem seu banco. Sair salva as alterações antes de trocar de espaço; uma falha impede a troca. A fila de envio, exclusões pendentes, versões, conflitos e fotos continuam na origem. Outras abas detectam a troca; operações antigas continuam vinculadas ao banco original.
+
+O banco antigo agromapa permanece intacto. A migração copia propriedades locais sem vínculo com contas para o modo local. Propriedades de contas são recuperadas somente com vínculo conhecido ou autorização retornada pelo servidor. Dados sem atribuição segura permanecem no original. Cada propriedade é atribuída uma única vez e copiada atomicamente com sua fila; repetir a migração não repõe envios concluídos. Colisões interrompem a cópia sem sobrescrever registros. O formato antigo state2 também é preservado.
+
+Em Ajustes, uma conta pode copiar explicitamente propriedades do modo local. A origem permanece intacta. Limpar os dados afeta somente o espaço aberto. A separação é lógica, não criptografia nem substituto das políticas de acesso do servidor.
+
+Para verificar o IndexedDB real, abra /tests/browser-accounts.html na prévia e execute os testes. Usam bancos temporários e contas fictícias, cobrindo alternância, fila, fotos e migração nos adaptadores nativo e idb. O login real e a sincronização com o servidor não foram validados: a configuração e o serviço de autenticação não estão neste repositório.
