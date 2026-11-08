@@ -17,7 +17,7 @@ Abra `http://127.0.0.1:4173`. A prévia usa dados próprios dessa origem; não a
 - Salvamentos são serializados. Uma falha mantém as alterações disponíveis para uma nova tentativa enquanto a página permanece aberta.
 - Autenticação e API têm limite de espera de 20 segundos; arquivos, importações e laudos usam 60 segundos, incluindo leitura da resposta. A sincronização pode ser tentada novamente após uma falha de rede.
 - A restauração prepara uma cópia do estado e valida listas, identificadores, coordenadas e referências de propriedade antes de aplicar o backup. Arquivos maiores que 20 MB ou com mais de 100 mil registros são recusados.
-- `backup.js` concentra a preparação do backup, sem acesso ao DOM ou ao banco. Os testes dessa rotina e da persistência ficam em `tests/`; GitHub Actions os executa em pushes e pull requests.
+- `backup.js` concentra a preparação do backup, sem acesso ao DOM ou ao banco. Os testes dessa rotina e da persistência ficam em `tests/` e podem ser executados pelo comando acima. A configuração de GitHub Actions foi preparada localmente, mas não publicada: a conexão atual não possui permissão para criar workflows.
 
 ## Interface
 
