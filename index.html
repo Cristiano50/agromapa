@@ -18,6 +18,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/idb@8.0.0/build/umd.js"></script>
 <script src="config.js" onerror="window.AGRO_CONFIG=window.AGRO_CONFIG||{}"></script>
+<script src="backup.js"></script>
 <style>
 /* Layout: app shell — header / rail (desktop) or bottom bar (phone) / panel + map side by side on desktop, stacked on phone */
 :root{
@@ -62,7 +63,7 @@ header.top{display:flex;align-items:center;gap:10px;padding-block:8px;padding-le
 .pill i{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block}
 .pill.on i{background:var(--ok)} .pill.off i{background:var(--crit)} .pill.busy i{background:var(--warn)}
 
-main.main{display:grid;grid-template-columns:440px minmax(0,1fr);min-height:0}
+main.main{position:relative;display:grid;grid-template-columns:440px minmax(0,1fr);min-height:0}
 .panel{overflow:auto;border-right:1px solid var(--line);background:var(--panel);padding-block:14px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:16px;min-width:0}
 .mapwrap{position:relative;min-height:0}
 #map{position:absolute;inset:0;background:var(--bg)}
@@ -167,7 +168,7 @@ canvas.chart{width:100%;height:150px;display:block}
 .sheet button.active{border-color:var(--accent);color:var(--accent)}
 
 /* map overlays */
-.gpsbox{position:absolute;left:52px;top:10px;z-index:900;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:8px 10px;font-size:12px;min-width:170px}
+.gpsbox{position:absolute;left:52px;top:10px;z-index:900;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:8px 10px;font-size:12px;max-width:calc(100% - 170px);overflow-wrap:anywhere}
 .gpsbox b{font-family:var(--font-display);font-size:14px}
 .basebox{position:absolute;right:10px;top:10px;z-index:900;display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px;box-shadow:var(--shadow);flex-wrap:wrap;max-width:60%;justify-content:flex-end}
 .basebox button{border:0;background:none;padding:4px 8px;border-radius:6px;font-size:12px;color:var(--muted)}
@@ -175,6 +176,13 @@ canvas.chart{width:100%;height:150px;display:block}
 .layerbox{position:absolute;right:10px;top:48px;z-index:900;display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px;box-shadow:var(--shadow);flex-wrap:wrap;max-width:60%;justify-content:flex-end}
 .layerbox button{border:0;background:none;padding:3px 7px;border-radius:6px;font-size:11px;color:var(--muted)}
 .layerbox button.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.map-options{position:absolute;right:10px;top:10px;z-index:910;max-width:calc(100% - 64px)}
+.map-options summary{list-style:none;cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-height:44px;font-weight:600}
+.map-options summary::-webkit-details-marker{display:none}
+.map-options[open]{width:320px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);max-height:calc(100% - 20px);overflow:auto}
+.map-options .basebox,.map-options .layerbox{position:static;max-width:none;border:0;box-shadow:none;justify-content:flex-start;padding:6px;gap:6px}
+.map-options button{min-height:44px;padding:8px 10px}
+.map-panel-toggle{display:none}
 .marker-gps{width:18px;height:18px;border-radius:50%;background:var(--sky);border:3px solid #fff;box-shadow:0 0 0 2px var(--sky),0 0 0 10px color-mix(in srgb,var(--sky) 25%,transparent)}
 .marker-sample{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
 .marker-sample.sq{border-radius:3px}
@@ -187,6 +195,7 @@ canvas.chart{width:100%;height:150px;display:block}
 
 /* phone layout */
 @media (max-width:860px){
+  .app{height:100dvh}
   main.main{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
   header.top{flex-wrap:wrap;row-gap:6px}
   .pills{flex-basis:100%;justify-content:flex-start;margin-left:0}
@@ -194,12 +203,26 @@ canvas.chart{width:100%;height:150px;display:block}
   .farmsel{flex:1;max-width:none}
   .panel{border-right:0;padding-right:max(16px,env(safe-area-inset-right,0px));padding-bottom:24px}
   body:not(.tab-mapa) .mapwrap{display:none}
-  body.tab-mapa .panel{position:absolute;left:0;right:0;bottom:0;max-height:46%;border-top:1px solid var(--line);border-radius:14px 14px 0 0;box-shadow:0 -4px 16px rgba(0,0,0,.18);z-index:950;padding-block:10px}
+  body.tab-mapa .panel{position:absolute;left:0;right:0;bottom:0;max-height:46%;border-top:1px solid var(--line);border-radius:14px 14px 0 0;box-shadow:0 -4px 16px rgba(0,0,0,.18);z-index:950;padding-block:10px;overscroll-behavior:contain}
+  body.tab-mapa .map-panel-toggle{display:flex;width:100%;justify-content:space-between;min-height:44px;position:sticky;top:-10px;background:var(--panel);z-index:2;margin-bottom:8px}
+  body.tab-mapa .panel.map-collapsed #tab-mapa{display:none}
+  body.tab-mapa .panel.map-collapsed{overflow:hidden}
   body.tab-mapa .mapwrap{position:relative;height:100%}
+  .gpsbox{min-width:0;max-width:calc(100% - 190px);padding:6px 8px;overflow-wrap:anywhere}
+  .gpsbox b{font-size:12px}
+  nav.tabs{position:relative;z-index:1000;padding-bottom:env(safe-area-inset-bottom,0px)}
+  nav.tabs button{min-height:56px;min-width:0}
+  .btn,.btn.small,.seg button,.farmsel{min-height:44px}
+  label.fl input,label.fl select,label.fl textarea{font-size:16px;min-height:44px}
+  label.fl input[type=checkbox]{min-height:24px}
   .brand small{display:none}
   .row3,.row4{grid-template-columns:1fr 1fr}
   .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   nav.tabs button.desk{display:none}
+}
+@media (max-width:480px){
+  form.f .row,form.f .row3,form.f .row4{grid-template-columns:minmax(0,1fr)}
+  .bigstats{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (min-width:861px){
   nav.tabs{display:none}
@@ -208,6 +231,7 @@ canvas.chart{width:100%;height:150px;display:block}
   .rail button.active{background:var(--accent-soft);color:var(--accent)}
   .rail .badge{right:8px;top:4px}
   main.main{grid-template-columns:auto 440px minmax(0,1fr)}
+  body:is(.tab-campo,.tab-colheita,.tab-estoque,.tab-financeiro,.tab-config) main.main{grid-template-columns:auto minmax(440px,1fr) minmax(260px,.65fr)}
 }
 .bigstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .bigstats .stat b{font-size:19px}
@@ -340,18 +364,19 @@ svg.leaflet-zoom-animated{will-change:transform}
   <main class="main">
     <div class="rail" id="rail"></div>
     <div class="panel" id="panel">
+      <button class="btn map-panel-toggle" id="mapPanelToggle" type="button" aria-expanded="true" aria-controls="tab-mapa"><span>Ferramentas de mapeamento</span><span id="mapPanelToggleLabel">Recolher</span></button>
 
       <!-- PAINEL -->
       <section class="tab" id="tab-painel">
         <div class="sec-head"><h2 id="dashFarm">Painel</h2><span class="sub" id="dashSeason"></span></div>
         <div class="btnrow"><a class="btn small" id="btnShare" href="https://wa.me/" target="_blank" rel="noopener">Compartilhar resumo do dia (WhatsApp)</a></div>
-        <div class="card inst" id="instCard" hidden></div>
         <div class="stats" id="dashStats"></div>
-        <div class="card" id="dashFarmProfile"></div>
         <div class="card" id="dashAlerts"></div>
+        <div class="card"><div class="eyebrow">Tarefas próximas</div><div class="list" id="dashTasks" style="margin-top:8px"></div></div>
+        <div class="card" id="dashFarmProfile"></div>
+        <div class="card inst" id="instCard" hidden></div>
         <div class="card"><div class="chart-title"><span>Chuva — últimos 30 dias + previsão 7 (mm)</span><span id="dashRainTot" class="num"></span></div><canvas class="chart" id="chRain"></canvas><p class="note" id="dashRainNote">Atualize a previsão na aba Clima para preencher.</p></div>
         <div class="card"><div class="chart-title"><span>Custo acumulado por talhão (R$/ha, safra atual)</span></div><canvas class="chart" id="chCost"></canvas></div>
-        <div class="card"><div class="eyebrow">Tarefas próximas</div><div class="list" id="dashTasks" style="margin-top:8px"></div></div>
         <div class="card"><div class="eyebrow">Últimos registros</div><div id="dashLog" style="margin-top:8px"></div></div>
       </section>
 
@@ -683,15 +708,17 @@ svg.leaflet-zoom-animated{will-change:transform}
     <div class="mapwrap" id="mapwrap">
       <div id="map" class="nobase"></div>
       <div class="gpsbox" id="gpsbox"><b id="gpsStatus">GPS parado</b><div class="num" id="gpsCoords">—</div><div class="num" id="gpsAcc"></div></div>
-      <div class="basebox"><button data-base="lic" title="Satélite licenciado, disponível offline">Offline</button><button data-base="sat">Satélite</button><button data-base="osm">Ruas</button><button data-base="none">Sem base</button></div>
+      <details class="map-options" id="mapOptions"><summary>Camadas</summary>
+      <div class="basebox" role="group" aria-label="Mapa de fundo"><button data-base="lic" title="Satélite licenciado, disponível offline">Offline</button><button data-base="sat">Satélite</button><button data-base="osm">Ruas</button><button data-base="none">Sem base</button></div>
       <div class="layerbox" id="layerbox"><button data-layer="farm" class="active">Divisa</button><button data-layer="areas" class="active">Talhões</button><button data-layer="samples" class="active">Amostras</button><button data-layer="photos" class="active">Fotos</button><button data-layer="mip" class="active">MIP</button><button data-layer="lots" class="active">Lotes</button><button data-layer="overlay" class="active">Vigor</button></div>
+      </details>
     </div>
   </main>
 
   <nav class="tabs" id="tabs"></nav>
 </div>
-<div class="sheet" id="sheet"><div id="sheetGrid"></div></div>
-<div class="toast" id="toast" role="status"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Mais opções" tabindex="-1"><div id="sheetGrid"></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="printArea" aria-hidden="true"></div>
 
 <script>
@@ -740,12 +767,22 @@ const DB=(()=>{ let p=null; const upgrade=d=>{ DB_STORES.forEach(n=>{ if(!d.obje
     p=(window.idb&&window.idb.openDB)?window.idb.openDB('agromapa',2,{upgrade}):new Promise((res,rej)=>{ try{ const r=indexedDB.open('agromapa',2); r.onupgradeneeded=e=>upgrade(e.target.result); r.onsuccess=e=>{ const d=e.target.result; res(d); }; r.onerror=()=>rej(r.error); }catch(e){ rej(e); } });
     return p; }
   const req=q=>new Promise((res,rej)=>{ q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); });
-  async function run(store,mode,fn){ try{ const d=await open(); if(d.transaction&&window.idb&&d.get){ return await fn(d.transaction(store,mode).store,true); } const st=d.transaction(store,mode).objectStore(store); return await fn(st,false); }catch(e){ if(mode==='readwrite') DB_LAST_ERR=e; return undefined; } }
+  async function transaction(stores,mode,fn){ let tx,done;
+    try{ const d=await open(); const wrapped=!!(window.idb&&d.get); tx=d.transaction(stores,mode);
+      done=wrapped?tx.done:new Promise((resolve,reject)=>{ tx.oncomplete=resolve; tx.onabort=()=>reject(tx.error||new Error('Gravação cancelada')); tx.onerror=()=>{}; });
+      // Observe failures immediately, including aborts while requests are still pending.
+      done.catch(()=>{}); const result=await fn(name=>tx.objectStore(name),wrapped); await done; return result;
+    }catch(e){ try{ tx?.abort(); }catch(_){} if(done) await done.catch(()=>{}); if(mode==='readwrite') DB_LAST_ERR=e; throw e; }
+  }
+  const run=(store,mode,fn)=>transaction(store,mode,(get,wrapped)=>fn(get(store),wrapped));
   const op=(store,mode,name,...args)=>run(store,mode,(st,isIdb)=>isIdb?st[name](...args):req(st[name](...args)));
   return { get:(s,k)=>op(s,'readonly','get',k), set:(s,k,v)=>op(s,'readwrite','put',v,k), del:(s,k)=>op(s,'readwrite','delete',k), count:s=>op(s,'readonly','count'), clear:s=>op(s,'readwrite','clear'),
+    atomic(stores,fn){ return transaction(stores,'readwrite',(get,wrapped)=>fn((s,name,...args)=>{ const q=get(s)[name](...args); return wrapped?q:req(q); })); },
     keys:s=>op(s,'readonly','getAllKeys'), all:s=>op(s,'readonly','getAll'),
-    async entries(s){ const [k,v]=await Promise.all([this.keys(s),this.all(s)]); return (k||[]).map((key,i)=>[key,v[i]]); },
-    async putMany(s,pairs){ if(!pairs.length) return; return run(s,'readwrite',async(st,isIdb)=>{ for(const [k,v] of pairs){ if(v===undefined) isIdb?await st.delete(k):await req(st.delete(k)); else isIdb?await st.put(v,k):await req(st.put(v,k)); } }); } };
+    async entries(s){ return run(s,'readonly',async(st,wrapped)=>{ const [k,v]=await Promise.all([wrapped?st.getAllKeys():req(st.getAllKeys()),wrapped?st.getAll():req(st.getAll())]); return k.map((key,i)=>[key,v[i]]); }); },
+    async batch(groups){ const names=Object.keys(groups).filter(s=>groups[s].length); if(!names.length) return;
+      return transaction(names,'readwrite',async(get,wrapped)=>{ const pending=[]; for(const s of names) for(const [k,v] of groups[s]){ const q=v===undefined?get(s).delete(k):get(s).put(v,k); pending.push(wrapped?q:req(q)); } await Promise.all(pending); }); },
+    putMany(s,pairs){ return this.batch({[s]:pairs}); } };
 })();
 
 /* ============================ base de conhecimento ============================ */
@@ -903,6 +940,13 @@ function seed(){
 /* ============================ gráficos (canvas) ============================ */
 function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 function chart(canvas,{labels,series,type='bar',unit='',lab=6}){ // series: [{name,values,color,line}]
+  canvas.setAttribute('role','img'); canvas.setAttribute('aria-label','Gráfico. Os valores estão disponíveis em Ver dados do gráfico.');
+  let data=canvas.nextElementSibling;
+  if(!data?.classList.contains('chart-data')){ data=document.createElement('details'); data.className='chart-data note'; canvas.after(data); }
+  data.innerHTML='<summary>Ver dados do gráfico</summary><div class="tablewrap"><table class="t"><thead></thead><tbody></tbody></table></div>';
+  const head=document.createElement('tr');
+  ['Período / categoria',...series.map(s=>(s.name||'Valor')+(unit?' ('+unit+')':''))].forEach(name=>{ const th=document.createElement('th'); th.scope='col'; th.textContent=name; head.append(th); }); data.querySelector('thead').append(head);
+  labels.forEach((label,i)=>{ const row=document.createElement('tr'); [label,...series.map(s=>s.values[i]==null?'—':fmt(s.values[i],2))].forEach((value,j)=>{ const cell=document.createElement(j?'td':'th'); if(!j) cell.scope='row'; cell.textContent=value; row.append(cell); }); data.querySelector('tbody').append(row); });
   const dpr=window.devicePixelRatio||1; const W=canvas.clientWidth||300, H=canvas.clientHeight||150; canvas.width=W*dpr; canvas.height=H*dpr; const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr); ctx.clearRect(0,0,W,H);
   const fg=cssVar('--fg'), muted=cssVar('--muted'), line=cssVar('--line'); const all=series.flatMap(s=>s.values).filter(v=>v!=null&&!isNaN(v));
   if(!all.length||!labels.length){ ctx.fillStyle=muted; ctx.font='12px '+cssVar('--font-body'); ctx.fillText('Sem dados ainda',10,H/2); return; }
@@ -926,13 +970,18 @@ function buildNav(){
   $('#rail').innerHTML=TABS.map(([id,l])=>b(id,l)).join('');
   $('#tabs').innerHTML=TABS.filter(t=>t[2]).map(([id,l])=>b(id,l)).join('')+`<button type="button" id="btnMore">${ICON.more}<span>Mais</span><span class="badge" id="moreBadge" hidden></span></button>`;
   $('#sheetGrid').innerHTML=TABS.filter(t=>!t[2]).map(([id,l])=>b(id,l)).join('');
-  $$('[data-tab]').forEach(el=>el.onclick=()=>{ showTab(el.dataset.tab); $('#sheet').classList.remove('show'); });
-  $('#btnMore').onclick=()=>$('#sheet').classList.add('show'); $('#sheet').onclick=e=>{ if(e.target.id==='sheet') $('#sheet').classList.remove('show'); };
+  const closeSheet=()=>{ $('#sheet').classList.remove('show'); $('#btnMore').setAttribute('aria-expanded','false'); $('#btnMore').focus(); };
+  $$('[data-tab]').forEach(el=>el.onclick=()=>{ showTab(el.dataset.tab); if($('#sheet').classList.contains('show')) closeSheet(); });
+  $('#btnMore').setAttribute('aria-haspopup','dialog'); $('#btnMore').setAttribute('aria-expanded','false');
+  $('#btnMore').onclick=()=>{ $('#sheet').classList.add('show'); $('#btnMore').setAttribute('aria-expanded','true'); $('#sheetGrid button').focus(); };
+  $('#sheet').onclick=e=>{ if(e.target.id==='sheet') closeSheet(); };
+  $('#sheet').addEventListener('keydown',e=>{ if(e.key==='Escape'){ e.preventDefault(); closeSheet(); } else if(e.key==='Tab'){ const buttons=$$('#sheetGrid button'), first=buttons[0], last=buttons.at(-1); if(e.shiftKey&&document.activeElement===first){ e.preventDefault(); last.focus(); } else if(!e.shiftKey&&document.activeElement===last){ e.preventDefault(); first.focus(); } } });
+  $('#mapPanelToggle').onclick=()=>{ const collapsed=$('#panel').classList.toggle('map-collapsed'); $('#mapPanelToggle').setAttribute('aria-expanded',String(!collapsed)); $('#mapPanelToggleLabel').textContent=collapsed?'Expandir':'Recolher'; };
 }
 const RENDER={}; // id -> função que renderiza a aba
-function showTab(id){ S.settings.tab=id; save(); $$('section.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+id)); $$('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===id)); document.body.className='tab-'+id; $('#panel').scrollTop=0; if(RENDER[id]) RENDER[id](); setTimeout(()=>{ if(typeof map!=='undefined'&&map) map.invalidateSize(); },60); }
+function showTab(id){ S.settings.tab=id; save(); $$('section.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+id)); $$('[data-tab]').forEach(b=>{ b.classList.toggle('active',b.dataset.tab===id); if(b.dataset.tab===id) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); }); document.body.className='tab-'+id; $('#panel').scrollTop=0; if(RENDER[id]) RENDER[id](); setTimeout(()=>{ if(typeof map!=='undefined'&&map){ map.invalidateSize(); if(mapNeedsFit) fitFarm(); } },60); }
 function setBadge(tab,n){ $$(`[data-tab="${tab}"] .badge`).forEach(b=>{ b.textContent=n; b.hidden=!n; }); if(!TABS.find(t=>t[0]===tab)[2]){ const m=$('#moreBadge'); const tot=TABS.filter(t=>!t[2]).reduce((s,t)=>s+(+($(`.sheet [data-tab="${t[0]}"] .badge`)?.textContent||0)),0); m.textContent=tot; m.hidden=!tot; } }
-function segInit(segId){ const seg=$('#'+segId); $$('button',seg).forEach(b=>b.onclick=()=>{ $$('button',seg).forEach(x=>x.classList.toggle('active',x===b)); $$('.sub-tab',seg.parentElement).forEach(s=>s.classList.toggle('active',s.id==='sub-'+b.dataset.sub)); $('#panel').scrollTop=0; }); }
+function segInit(segId){ const seg=$('#'+segId); $$('button',seg).forEach(b=>{ b.setAttribute('aria-pressed',String(b.classList.contains('active'))); b.onclick=()=>{ $$('button',seg).forEach(x=>{ x.classList.toggle('active',x===b); x.setAttribute('aria-pressed',String(x===b)); }); $$('.sub-tab',seg.parentElement).forEach(s=>s.classList.toggle('active',s.id==='sub-'+b.dataset.sub)); $('#panel').scrollTop=0; }; }); }
 function netPill(){ const on=navigator.onLine; $('#pillNet').className='pill '+(on?'on':'off'); $('#pillNet span').textContent=on?'online':'offline'; }
 window.addEventListener('online',netPill); window.addEventListener('offline',netPill);
 /* responsável: função na fazenda ou membro da conta — sem nomes de terceiros (LGPD) */
@@ -972,25 +1021,38 @@ const farmById=id=>S.farms.find(f=>f.id===id);
 const isCloud=fid=>!!farmById(fid)?.cloud;
 function dataUrlToBlob(u){ const [h,b]=u.split(','); const mime=(h.match(/data:([^;]+)/)||[])[1]||'image/jpeg'; const bin=atob(b); const a=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) a[i]=bin.charCodeAt(i); return new Blob([a],{type:mime}); }
 
-function save(){ if(WIPING) return; clearTimeout(persistT); persistT=setTimeout(()=>{ persistT=null; persistP=persist(); },120); }
+function save(){ if(WIPING) return; clearTimeout(persistT); persistT=setTimeout(()=>{ persistT=null; persist().catch(()=>{}); },120); }
 /* ao trocar de app, bloquear a tela ou fechar a aba, grava o que estiver pendente na hora */
-function flushSave(){ if(WIPING||persistT==null) return; clearTimeout(persistT); persistT=null; persistP=persist(); }
+function flushSave(){ if(WIPING||persistT==null) return; clearTimeout(persistT); persistT=null; persist().catch(()=>{}); }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') flushSave(); }); window.addEventListener('pagehide',flushSave);
-async function persistNow(){ clearTimeout(persistT); persistT=null; await (persistP||Promise.resolve()); persistP=persist(); return persistP; }
-async function persist(){ if(WIPING) return;
-  const pairs=[], ob=[], seen=new Set();
+function persistNow(){ clearTimeout(persistT); persistT=null; return persist(); }
+function showSaveFailure(error){
+  let banner=document.getElementById?.('saveFailure');
+  if(!banner&&error&&document.body){ banner=document.createElement('div'); banner.id='saveFailure'; banner.setAttribute('role','alert');
+    banner.style.cssText='position:fixed;z-index:20000;top:calc(env(safe-area-inset-top,0px) + 8px);left:8px;right:8px;max-width:640px;margin:auto;padding:12px;background:var(--panel);color:var(--fg);border:2px solid var(--crit);border-radius:10px;box-shadow:var(--shadow);display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+    const message=document.createElement('span'); message.textContent='Há alterações que ainda não foram salvas neste aparelho. Libere espaço ou exporte um backup em Ajustes.'; message.style.flex='1 1 220px'; banner.append(message);
+    const retry=document.createElement('button'); retry.className='btn small'; retry.textContent='Tentar salvar novamente'; retry.onclick=async()=>{ retry.disabled=true; try{ await persistNow(); }catch(_){} finally{ retry.disabled=false; } }; banner.append(retry); document.body.append(banner);
+  } if(banner){ banner.hidden=!error; banner.style.display=error?'flex':'none'; }
+}
+function queueLocalWrite(fn){ const next=(persistP||Promise.resolve()).catch(()=>{}).then(fn); persistP=next; return next; }
+function persist(force=false){
+  // A failed write must not poison the queue: the next save retries the same snapshot.
+  const next=queueLocalWrite(()=>persistCommit(force));
+  next.catch(e=>{ showSaveFailure(e); if(!persist._warned){ persist._warned=true; toast('Não foi possível salvar no aparelho ('+(e.name||'erro')+'). Libere espaço e exporte um backup em Ajustes. A próxima gravação tentará novamente.'); } }); return next;
+}
+async function persistCommit(force){ if(WIPING) return;
+  const pairs=[], ob=[], seen=new Set(), nextSnap=new Map(SNAP);
   for(const p of S.photos) if(p.thumb&&String(p.thumb).startsWith('data:')){ await DB.set('blobs','photo:'+p.id+':t',dataUrlToBlob(p.thumb)); PHOTO_URLS.delete(p.id); delete p.thumb; p.hasBlob=true; }
   for(const k of Object.keys(SKEYS)){ (S[k]||[]).forEach((r,o)=>{ if(!r.id) r.id=uid(); if(SKEY_ALIAS[k]&&r.kind!==SKEY_ALIAS[k].kind) r.kind=SKEY_ALIAS[k].kind; if(k!=='farms'&&!r.farmId) r.farmId=farmOfRec(k,r);
       const key=k+':'+r.id; seen.add(key); const data=recData(k,r); const j=JSON.stringify(data);
-      if(SNAP.get(key)!==j){ SNAP.set(key,j); pairs.push([key,{k,id:r.id,rec:r,o}]); const f=farmOfRec(k,r); if(isCloud(f)) ob.push([key,{k,table:SKEYS[k],id:r.id,farm:f,data,deleted:false,seq:++SYNCSEQ}]); } }); }
-  for(const key of [...SNAP.keys()]) if(!seen.has(key)){ const i=key.indexOf(':'); const k=key.slice(0,i), id=key.slice(i+1); const last=JSON.parse(SNAP.get(key)); SNAP.delete(key); pairs.push([key,undefined]);
+      if(force||SNAP.get(key)!==j){ nextSnap.set(key,j); pairs.push([key,{k,id:r.id,rec:structuredClone(r),o}]); const f=farmOfRec(k,r); if(isCloud(f)) ob.push([key,{k,table:SKEYS[k],id:r.id,farm:f,data:JSON.parse(j),deleted:false,seq:++SYNCSEQ}]); } }); }
+  for(const key of [...SNAP.keys()]) if(!seen.has(key)){ const i=key.indexOf(':'); const k=key.slice(0,i), id=key.slice(i+1); const last=JSON.parse(SNAP.get(key)); nextSnap.delete(key); pairs.push([key,undefined]);
     const f=k==='farms'?id:(last.farmId||S.farmId); if(isCloud(f)||(k==='farms'&&last.cloud)) ob.push([key,{k,table:SKEYS[k],id,farm:f,data:last,deleted:true,seq:++SYNCSEQ}]); }
-  await DB.putMany('records',pairs); await DB.putMany('outbox',ob);
-  await DB.set('kv','local',{settings:S.settings,alerts:S.alerts,forecast:S.forecast,dmSession:S.dmSession,farmId:S.farmId,schema:S.schema||4});
+  await DB.batch({records:pairs,outbox:ob,kv:[['local',structuredClone({settings:S.settings,alerts:S.alerts,forecast:S.forecast,dmSession:S.dmSession,farmId:S.farmId,schema:S.schema||4})]]});
+  SNAP.clear(); for(const [key,value] of nextSnap) SNAP.set(key,value); DB_LAST_ERR=null; persist._warned=false; showSaveFailure(null);
   if(ob.length) SYNC.schedule(); SYNC.updatePill();
-  if(DB_LAST_ERR&&!persist._warned){ persist._warned=true; toast('Atenção: o aparelho recusou gravar dados ('+(DB_LAST_ERR.name||'erro')+'). Libere espaço e exporte um backup em Ajustes.'); }
 }
-async function persistAll(){ SNAP.clear(); await persist(); }
+async function persistAll(){ await persist(true); }
 async function load(){
   try{ await navigator.storage?.persist?.(); }catch(e){}
   const recs=await DB.entries('records')||[];
@@ -1017,11 +1079,13 @@ async function migrateFromV3(old){
   setTimeout(()=>toast('Dados migrados para o novo formato (cópia de segurança mantida no aparelho).'),1500);
 }
 // Grava registro vindo do servidor sem reenfileirar
-async function applyRemote(k,id,data,deleted){ const arr=S[k]; const i=arr.findIndex(r=>r.id===id); const key=k+':'+id;
-  if(deleted){ if(i>=0) arr.splice(i,1); SNAP.delete(key); await DB.del('records',key); return; }
+function applyRemote(k,id,data,deleted){ const next=(persistP||Promise.resolve()).catch(()=>{}).then(()=>applyRemoteCommit(k,id,data,deleted)); persistP=next; return next; }
+async function applyRemoteCommit(k,id,data,deleted){ const arr=S[k]; const i=arr.findIndex(r=>r.id===id); const key=k+':'+id;
+  if(deleted){ await DB.del('records',key); if(i>=0) arr.splice(i,1); SNAP.delete(key); return; }
   const prev=i>=0?arr[i]:null; const rec={...data,id}; if(k==='farms'){ rec.cloud=true; if(prev){ rec._members=prev._members; rec._role=prev._role; } }
   const healed=healOld(k,prev,rec);
-  if(i>=0) arr[i]=rec; else arr.push(rec); if(k==='ops'||k==='fin') FV++; if(healed&&isFolha(rec)) folhaSync(rec); if(healed) SNAP.delete(key); else SNAP.set(key,JSON.stringify(recData(k,rec))); await DB.set('records',key,{k,id,rec,o:i>=0?i:arr.length-1}); if(healed) save(); }
+  if(healed&&isFolha(rec)) folhaSync(rec); await DB.set('records',key,{k,id,rec,o:i>=0?i:arr.length});
+  if(i>=0) arr[i]=rec; else arr.push(rec); if(k==='ops'||k==='fin') FV++; if(healed) SNAP.delete(key); else SNAP.set(key,JSON.stringify(recData(k,rec))); if(healed) save(); }
 
 /* ---------------- fotos: blobs locais + Storage ---------------- */
 const PHOTO_URLS=new Map();
@@ -1033,15 +1097,50 @@ async function hydratePhotos(root){ for(const img of $$('img[data-ph]',root||doc
     if(b){ const u=URL.createObjectURL(b); PHOTO_URLS.set(id,u); img.src=u; } } }
 
 /* ---------------- conta, API e motor de sincronização ---------------- */
+async function acknowledgeSync(key,e,r,fid){
+  await DB.atomic(['outbox','meta','conflicts'],async op=>{
+    const cur=await op('outbox','get',key), still=cur&&cur.seq===e.seq;
+    if(r.status==='ok'){ await op('meta','put',{version:r.version},'v:'+key); if(still) await op('outbox','delete',key); }
+    else if(r.status==='conflict'){ const mine=cur||e; await op('conflicts','put',{key,k:e.k,table:e.table,id:e.id,farm:fid,mine:mine.data,mineDeleted:mine.deleted,server:r.server,version:r.version,at:Date.now()},key); if(still) await op('outbox','delete',key); }
+    else if(r.status==='denied'){ if(still) await op('outbox','delete',key); await op('meta','delete','v:'+key); await op('meta','delete','cursor:'+fid); }
+  });
+}
+async function receiveSync(k,id,data,deleted,version){
+  return queueLocalWrite(async()=>{
+    // Flush edits still inside the debounce window before deciding whether remote data may replace them.
+    await persistCommit(false); const key=k+':'+id; const current=S[k].find(r=>r.id===id);
+    const before=current?JSON.stringify(recData(k,current)):null; let rec,healed=false;
+    const accepted=await DB.atomic(['outbox','conflicts','meta','records'],async op=>{
+      if(await op('outbox','get',key)) return false;
+      const conflict=await op('conflicts','get',key); if(conflict){ conflict.server={data,deleted}; conflict.version=version; await op('conflicts','put',conflict,key); return false; }
+      const meta=await op('meta','get','v:'+key); if(meta&&meta.version>=version) return false;
+      if(deleted) await op('records','delete',key);
+      else { rec={...data,id}; if(k==='farms'){ rec.cloud=true; rec._members=current?._members; rec._role=current?._role; } healed=healOld(k,current,rec); if(healed&&isFolha(rec)) folhaSync(rec); const index=S[k].findIndex(r=>r.id===id); await op('records','put',{k,id,rec,o:index>=0?index:S[k].length},key); }
+      await op('meta','put',{version},'v:'+key); return true;
+    });
+    if(!accepted) return false;
+    const latest=S[k].find(r=>r.id===id); const after=latest?JSON.stringify(recData(k,latest)):null;
+    // A form may change memory while IndexedDB is committing. Preserve that edit and enqueue it next.
+    if(after!==before){ if(deleted) SNAP.delete(key); else SNAP.set(key,JSON.stringify(recData(k,rec))); save(); return false; }
+    const i=S[k].findIndex(r=>r.id===id); if(deleted){ if(i>=0) S[k].splice(i,1); SNAP.delete(key); }
+    else { if(i>=0) S[k][i]=rec; else S[k].push(rec); if(healed){ SNAP.delete(key); save(); } else SNAP.set(key,JSON.stringify(recData(k,rec))); }
+    if(k==='ops'||k==='fin') FV++; return true;
+  });
+}
+async function requestWithTimeout(url,options,read,ms=20000){
+  const controller=new AbortController(); let timer;
+  const timeout=new Promise((_,reject)=>{ timer=setTimeout(()=>{ controller.abort(); const error=new Error('A conexão demorou demais. Tente sincronizar novamente.'); error.name='TimeoutError'; reject(error); },ms); });
+  try{ return await Promise.race([fetch(url,{...options,signal:controller.signal}).then(read),timeout]); }finally{ clearTimeout(timer); }
+}
 const SYNC=(()=>{ let session=null, timer=null, running=false; const st={pending:0,conflicts:0,last:null,error:null,denied:0};
   let DEVICE=null;
   const configured=()=>!!(CFG.supabaseUrl&&CFG.supabaseAnonKey&&CFG.apiUrl);
   const loggedIn=()=>!!session;
-  async function authCall(path,body){ const r=await fetch(CFG.supabaseUrl+'/auth/v1/'+path,{method:'POST',headers:{apikey:CFG.supabaseAnonKey,'Content-Type':'application/json'},body:JSON.stringify(body)}); const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.msg||j.error_description||j.message||j.error||('erro '+r.status)); return j; }
+  async function authCall(path,body){ return requestWithTimeout(CFG.supabaseUrl+'/auth/v1/'+path,{method:'POST',headers:{apikey:CFG.supabaseAnonKey,'Content-Type':'application/json'},body:JSON.stringify(body)},async r=>{ const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.msg||j.error_description||j.message||j.error||('erro '+r.status)); return j; }); }
   async function setSession(j){ session={access_token:j.access_token,refresh_token:j.refresh_token,expires_at:Date.now()+(j.expires_in||3600)*1000,user:{id:j.user?.id||session?.user?.id,email:j.user?.email||session?.user?.email}}; await DB.set('kv','session',session); }
   async function token(){ if(!session) return null; if(session.expires_at-Date.now()<60000){ try{ await setSession(await authCall('token?grant_type=refresh_token',{refresh_token:session.refresh_token})); }catch(e){ if(navigator.onLine&&/invalid|expired|not found/i.test(e.message)){ session=null; await DB.del('kv','session'); } throw e; } } return session.access_token; }
-  async function api(method,path,body,raw){ const t=await token(); if(!t) throw Object.assign(new Error('entre na conta'),{status:401}); const r=await fetch(CFG.apiUrl+path,{method,headers:{Authorization:'Bearer '+t,...(raw?{'Content-Type':'application/octet-stream'}:body!==undefined?{'Content-Type':'application/json'}:{})},body:raw?body:body!==undefined?JSON.stringify(body):undefined}); const j=await r.json().catch(()=>({})); if(!r.ok) throw Object.assign(new Error(j.error||('erro '+r.status)),{status:r.status}); return j; }
-  async function storage(method,path,body,type){ const t=await token(); const r=await fetch(`${CFG.supabaseUrl}/storage/v1/object/${method==='GET'?'authenticated/':''}farm-files/${path}`,{method,headers:{apikey:CFG.supabaseAnonKey,Authorization:'Bearer '+t,...(type?{'Content-Type':type,'x-upsert':'true'}:{})},body}); if(!r.ok) throw new Error('storage '+r.status); return method==='GET'?r.blob():r.json().catch(()=>({})); }
+  async function api(method,path,body,raw){ const t=await token(); if(!t) throw Object.assign(new Error('entre na conta'),{status:401}); return requestWithTimeout(CFG.apiUrl+path,{method,headers:{Authorization:'Bearer '+t,...(raw?{'Content-Type':'application/octet-stream'}:body!==undefined?{'Content-Type':'application/json'}:{})},body:raw?body:body!==undefined?JSON.stringify(body):undefined},async r=>{ const j=await r.json().catch(()=>({})); if(!r.ok) throw Object.assign(new Error(j.error||('erro '+r.status)),{status:r.status}); return j; },path==='/laudo'||raw?60000:20000); }
+  async function storage(method,path,body,type){ const t=await token(); return requestWithTimeout(`${CFG.supabaseUrl}/storage/v1/object/${method==='GET'?'authenticated/':''}farm-files/${path}`,{method,headers:{apikey:CFG.supabaseAnonKey,Authorization:'Bearer '+t,...(type?{'Content-Type':type,'x-upsert':'true'}:{})},body},r=>{ if(!r.ok) throw new Error('storage '+r.status); return method==='GET'?r.blob():r.json().catch(()=>({})); },60000); }
 
   async function init(){ DEVICE=await DB.get('kv','device')||null; if(!DEVICE){ DEVICE='dev-'+uid(); await DB.set('kv','device',DEVICE); } session=await DB.get('kv','session')||null;
     const h=location.hash||''; if(h.startsWith('#convite=')){ await DB.set('kv','pendingInvite',decodeURIComponent(h.slice(9))); try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){} setTimeout(()=>{ showTab('config'); toast(session?'Aceitando o convite…':'Entre na conta para aceitar o convite.'); },600); }
@@ -1054,7 +1153,7 @@ const SYNC=(()=>{ let session=null, timer=null, running=false; const st={pending
       if(session){ if(st.conflicts){ cls='off'; txt=`${st.conflicts} conflito(s)`; } else if(!navigator.onLine){ cls='busy'; txt=st.pending?`${st.pending} pendente(s) — offline`:'offline'; } else if(running){ cls='busy'; txt='sincronizando…'; } else if(st.error){ cls='off'; txt='erro de sincronização'; } else if(st.pending){ cls='busy'; txt=`${st.pending} pendente(s)`; } else { cls='on'; txt='sincronizado'; } }
       el.className='pill '+cls; sp.textContent=txt; setBadge('config',st.conflicts); }); }
   async function syncAll(){ if(WIPING||running||!session||!navigator.onLine||!configured()) return; running=true; updatePill(); st.error=null;
-    try{ await persistNow(); const inv=await DB.get('kv','pendingInvite'); if(inv){ try{ const r=await api('POST','/invites/accept',{token:inv}); await DB.del('kv','pendingInvite'); await adoptFarm(r.farm_id,r.name); S.farmId=r.farm_id; toast(`Você entrou em "${r.name}" como ${ROLE_PT[r.role]}.`); }catch(e){ await DB.del('kv','pendingInvite'); toast('Convite: '+e.message); } }
+    try{ await persistNow(); const inv=await DB.get('kv','pendingInvite'); if(inv){ try{ const r=await api('POST','/invites/accept',{token:inv}); await DB.del('kv','pendingInvite'); await adoptFarm(r.farm_id,r.name); S.farmId=r.farm_id; toast(`Você entrou em "${r.name}" como ${ROLE_PT[r.role]}.`); }catch(e){ if([400,404,410,422].includes(e.status)) await DB.del('kv','pendingInvite'); toast('Convite: '+e.message); throw e; } }
       for(const f of S.farms.filter(x=>x.cloud)){ await pushFarm(f.id); await pullFarm(f.id); await pushFarm(f.id); await uploadPhotos(f.id); }
       st.last=Date.now(); await DB.set('kv','lastSync',st.last); }
     catch(e){ st.error=e.message; if(e.status===401){ session=null; await DB.del('kv','session'); toast('Sessão expirada: entre na conta de novo.'); } }
@@ -1063,19 +1162,13 @@ const SYNC=(()=>{ let session=null, timer=null, running=false; const st={pending
     for(let i=0;i<all.length;i+=200){ const batch=all.slice(i,i+200);
       const changes=await Promise.all(batch.map(async([key,e])=>{ const m=await DB.get('meta','v:'+key); return {table:e.table,id:e.id,data:e.data,deleted:e.deleted,base_version:m&&m.version>0?m.version:null}; }));
       const res=await api('POST','/sync',{farm_id:fid,device_id:DEVICE,changes});
-      for(let j=0;j<batch.length;j++){ const [key,e]=batch[j]; const r=res.results[j]||{}; const cur=await DB.get('outbox',key); const still=cur&&cur.seq===e.seq;
-        if(r.status==='ok'){ await DB.set('meta','v:'+key,{version:r.version}); if(still) await DB.del('outbox',key); }
-        else if(r.status==='conflict'){ await DB.set('conflicts',key,{key,k:e.k,table:e.table,id:e.id,farm:fid,mine:e.data,mineDeleted:e.deleted,server:r.server,version:r.version,at:Date.now()}); if(still) await DB.del('outbox',key); }
-        else if(r.status==='denied'){ st.denied++; if(still) await DB.del('outbox',key); await DB.del('meta','v:'+key); await DB.del('meta','cursor:'+fid); }
+      for(let j=0;j<batch.length;j++){ const [key,e]=batch[j]; const r=res.results[j]||{};
+        if(['ok','conflict','denied'].includes(r.status)){ await queueLocalWrite(()=>acknowledgeSync(key,e,r,fid)); if(r.status==='denied') st.denied++; }
         else st.error=r.error||'falha ao enviar'; } } }
   async function pullFarm(fid){ let since=await DB.get('meta','cursor:'+fid)||null, more=true, applied=0;
     while(more){ const r=await api('GET',`/sync?farm_id=${fid}${since?'&since='+encodeURIComponent(since):''}`);
-      for(const c of r.changes){ const k=routeKey(c); if(!k) continue; const key=k+':'+c.id;
-        if(await DB.get('outbox',key)) continue;
-        const conf=await DB.get('conflicts',key); if(conf){ conf.server={data:c.data,deleted:c.deleted}; conf.version=c.version; await DB.set('conflicts',key,conf); continue; }
-        const m=await DB.get('meta','v:'+key); if(m&&m.version>=c.version) continue;
-        await applyRemote(k,c.id,c.data,c.deleted); await DB.set('meta','v:'+key,{version:c.version}); applied++; }
-      if(r.farm){ const key='farms:'+fid; const m=await DB.get('meta','v:'+key); if(!(await DB.get('outbox',key))&&!(await DB.get('conflicts',key))&&!(m&&m.version>=r.farm.version)){ await applyRemote('farms',fid,{...r.farm.data,name:r.farm.name},false); await DB.set('meta','v:'+key,{version:r.farm.version}); applied++; } }
+      for(const c of r.changes){ const k=routeKey(c); if(k&&await receiveSync(k,c.id,c.data,c.deleted,c.version)) applied++; }
+      if(r.farm&&await receiveSync('farms',fid,{...r.farm.data,name:r.farm.name},false,r.farm.version)) applied++;
       const f=farmById(fid); if(f){ f._members=r.members||[]; f._role=r.role; }
       since=r.cursor; more=r.more; }
     await DB.set('meta','cursor:'+fid,since); if(applied){ fillSelects(); refreshAll(); } return applied; }
@@ -1135,6 +1228,7 @@ const SYNC=(()=>{ let session=null, timer=null, running=false; const st={pending
 })();
 
 /* ============================ mapa ============================ */
+let mapNeedsFit=true;
 let map, baseLayer=null, trackLine, trackPts=[], trackMarkers=[], tapMode=false, walking=false, watchId=null, gpsMarker=null, lastFix=null, simT=null, pendingTap=null;
 const layers={farm:null,areas:null,samples:null,photos:null,mip:null,lots:null,overlay:null};
 let tileErrors=0, tileOk=0, tileCount=0, healthWarned=false;
@@ -1159,7 +1253,7 @@ function initMap(){
   map.on('click',e=>{ if(tapMode){ addPoint({lat:e.latlng.lat,lng:e.latlng.lng,alt:null,acc:null}); } else if(pendingTap){ const f=pendingTap; pendingTap=null; f(e.latlng); } });
   fitFarm(); $$('.basebox button').forEach(b=>b.onclick=()=>setBase(b.dataset.base));
 }
-function fitFarm(){ const ar=A(); if(ar.length) map.fitBounds(L.latLngBounds(ar.flatMap(a=>a.pts.map(p=>[p.lat,p.lng]))).pad(.15)); }
+function fitFarm(){ if(!map||!map.getContainer().clientWidth||!map.getContainer().clientHeight){ mapNeedsFit=true; return; } const ar=A(); if(ar.length) map.fitBounds(L.latLngBounds(ar.flatMap(a=>a.pts.map(p=>[p.lat,p.lng]))).pad(.15)); mapNeedsFit=false; }
 function askTap(msg){ return new Promise(res=>{ toast(msg||'Toque no mapa para marcar a posição'); showTab('mapa'); pendingTap=res; }); }
 async function resolvePos(mode){ if(mode==='gps'){ if(lastFix) return lastFix; if(startGps()){ toast('Aguardando posição do GPS…'); await new Promise(r=>setTimeout(r,4000)); if(lastFix) return lastFix; } toast('Sem GPS: usando o centro do mapa'); return map.getCenter(); } if(mode==='tap') return askTap(); return map.getCenter(); }
 function rampColor(t){ t=Math.max(0,Math.min(1,t)); const stops=[[184,52,45],[227,162,67],[46,139,74]]; const i=t<.5?0:1; const f=t<.5?t*2:(t-.5)*2; const c=stops[i].map((v,k)=>Math.round(v+(stops[i+1][k]-v)*f)); return `rgb(${c.join(',')})`; }
@@ -2228,15 +2322,16 @@ $$('[data-exp]').forEach(b=>b.onclick=()=>{ const k=b.dataset.exp; let txt='', n
   const ta=$('#expOut'); ta.hidden=false; ta.value=txt; let dl=false; try{ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([(k.startsWith('csv')?'\ufeff':'')+txt],{type:k.startsWith('csv')?'text/csv;charset=utf-8':'text/plain;charset=utf-8'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); dl=true; }catch(e){} navigator.clipboard?.writeText(txt).then(()=>{ $('#expNote').textContent=`${name} copiado para a área de transferência${dl?' (e download iniciado, se o navegador permitir)':''}.${extra?' '+extra:''}`; }).catch(()=>{ ta.select(); $('#expNote').textContent='Selecione e copie o texto abaixo.'+(extra?' '+extra:''); }); });
 /* Restauração segura: acrescenta/atualiza registros pelo id e nunca apaga os que já existem
    (antes, substituir o estado inteiro apagava — e enviava à nuvem como exclusão — tudo que não estivesse no arquivo). */
-function mergeBackup(src){ const map=new Map(); for(const k of Object.keys(SKEYS)) (src[k]||[]).forEach(r=>{ if(r&&r.id&&!isUUID(r.id)) map.set(r.id,uid()); });
-  const fix=v=>Array.isArray(v)?v.map(fix):(v&&typeof v==='object')?Object.fromEntries(Object.entries(v).map(([a,b])=>[a,fix(b)])):(typeof v==='string'&&map.has(v))?map.get(v):v;
-  const st=map.size?fix(src):src; let added=0, updated=0;
-  for(const k of Object.keys(SKEYS)){ for(const r0 of (Array.isArray(st[k])?st[k]:[])){ if(!r0||typeof r0!=='object'||!r0.id) continue; const r={...r0}; ['cloud','_members','_role','_bSeeded'].forEach(x=>delete r[x]);
-      if(k==='areas'){ const se=r.season||(r.season={}); const txt=String(se.spacing||'').replace(/,/g,'.'); if(txt&&!se.rowSp){ const m=txt.match(/([\d.]+)\s*[x×]\s*([\d.]+)/); if(m){ se.rowSp=+m[1]; se.plantSp=+m[2]; } } if(se.plantDate&&!se.plantYear) se.plantYear=+String(se.plantDate).slice(0,4); }
-      if(k==='samples'&&r.results&&!r.resultsUnit) r.resultsUnit='mmolc';
-      const i=S[k].findIndex(x=>x.id===r.id); if(i>=0){ if(k==='farms'){ const p=S[k][i]; r.cloud=p.cloud; r._members=p._members; r._role=p._role; } S[k][i]=r; updated++; } else { S[k].push(r); added++; } } }
-  if(st.farmId&&farmById(st.farmId)) S.farmId=st.farmId; return {added,updated}; }
-$('#impBackup').onchange=async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; try{ const s=JSON.parse(await f.text()); if(!s||!Array.isArray(s.farms)) throw new Error('formato'); const r=mergeBackup(s); save(); refreshAll(); fitFarm(); toast(`Backup restaurado: ${r.added} registro(s) novo(s), ${r.updated} atualizado(s). Nada foi apagado.`); }catch(err){ toast('Backup inválido.'); } };
+function mergeBackup(src){ return AgroBackup.prepare(src,S,{keys:Object.keys(SKEYS),uid,isUUID}); }
+$('#impBackup').onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  let source,result;
+  try{ if(f.size>20*1024*1024) throw new Error('O backup deve ter até 20 MB.'); source=JSON.parse(await f.text()); mergeBackup(source); }
+  catch(err){ toast('Backup não restaurado: '+err.message); return; }
+  try{ await queueLocalWrite(async()=>{ result=mergeBackup(source); S=result.state; await persistCommit(); }); }
+  catch(err){ showSaveFailure(err); refreshAll(); toast('Backup ainda não gravado. Libere espaço e use Tentar salvar novamente; mantenha esta aba aberta.'); return; }
+  refreshAll(); fitFarm(); toast(`Backup restaurado: ${result.added} registro(s) novo(s), ${result.updated} atualizado(s). Nada foi apagado.`);
+};
 $('#btnClearEx').onclick=()=>{ ['areas','samples','stock','ops','lots','weighs','health','rotations','fin','tasks','rain','mip','mipPoints','clots'].forEach(k=>{ S[k]=S[k].filter(x=>!x.example); }); S.moves=S.moves.filter(m=>S.stock.some(i=>i.id===m.itemId)); S.farms.forEach(f=>{ delete f.example; if(f.boundary?.example) delete f.boundary; }); save(); refreshAll(); toast('Dados de exemplo removidos'); };
 $('#btnWipe').onclick=e=>confirmBtn(e.target,'Apagar TUDO deste aparelho?',async()=>{ WIPING=true; clearTimeout(persistT); persistT=null; try{ await persistP; }catch(_){} await SYNC.idle(); for(const st of DB_STORES) await DB.clear(st); location.reload(); });
 
@@ -2277,7 +2372,7 @@ RENDER.config=(f=>()=>{ f(); renderInstall(); })(RENDER.config);
 const UPD={reg:null,requested:false,reloading:false,lastCheck:0};
 function showUpdate(){ let bar=$('#updBar'); if(!bar){ bar=document.createElement('div'); bar.className='updbar'; bar.id='updBar'; bar.setAttribute('role','status'); document.body.appendChild(bar); }
   bar.innerHTML='<span>Nova versão do AgroMapa pronta.</span><span class="btnrow"><button class="btn primary small" type="button" id="updNow">Atualizar agora</button><button class="btn small" type="button" id="updLater">Depois</button></span>';
-  $('#updNow').onclick=async()=>{ UPD.requested=true; try{ if(typeof flushSave==='function') flushSave(); await (persistP||Promise.resolve()); }catch(_){} const w=UPD.reg&&UPD.reg.waiting; if(w) w.postMessage({type:'SKIP_WAITING'}); else location.reload(); };
+  $('#updNow').onclick=async()=>{ try{ await persistNow(); }catch(e){ showSaveFailure(e); toast('Atualização adiada: salve as alterações ou exporte um backup primeiro.'); return; } UPD.requested=true; const w=UPD.reg&&UPD.reg.waiting; if(w) w.postMessage({type:'SKIP_WAITING'}); else location.reload(); };
   $('#updLater').onclick=()=>bar.remove(); }
 async function swSetup(){ if(!(location.protocol.startsWith('http')&&'serviceWorker' in navigator)) return;
   try{ const reg=await navigator.serviceWorker.register('sw.js'); UPD.reg=reg; UPD.lastCheck=Date.now();
